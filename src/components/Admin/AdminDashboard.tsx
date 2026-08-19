@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useStore } from '../../context/StoreContext';
-import { Product, ProductCategory, OrderStatus, ProductColor } from '../../types';
+import { Product, ProductCategory, OrderStatus, ProductColor, OwnerAccount } from '../../types';
 import { REVENUE_ANALYTICS } from '../../data/products';
+import { AdminLoginModal } from './AdminLoginModal';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -27,10 +28,20 @@ import {
   Trash2,
   Edit,
   Eye,
+  EyeOff,
   TrendingUp,
   DollarSign,
   Users,
   Sparkles,
+  Key,
+  ShieldCheck,
+  Copy,
+  LogOut,
+  UserPlus,
+  Share2,
+  Lock,
+  Check,
+  Crown,
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -46,13 +57,32 @@ export const AdminDashboard: React.FC = () => {
     setIsAdminOpen,
     setSelectedProduct,
     showToast,
+    isAdminAuthenticated,
+    currentOwner,
+    logoutAdmin,
+    ownerAccounts,
+    addOwnerAccount,
+    updateOwnerPassword,
+    deleteOwnerAccount,
+    resetOwnerAccounts,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'orders' | 'settings'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'orders' | 'owners' | 'settings'>('analytics');
   const [productSearch, setProductSearch] = useState('');
   const [orderSearch, setOrderSearch] = useState('');
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+
+  // Owners Tab State
+  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
+  const [newOwnerName, setNewOwnerName] = useState('');
+  const [newOwnerUsername, setNewOwnerUsername] = useState('');
+  const [newOwnerPassword, setNewOwnerPassword] = useState('');
+  const [newOwnerRole, setNewOwnerRole] = useState<'CO_OWNER' | 'STORE_MANAGER' | 'MASTER_OWNER'>('CO_OWNER');
+  const [isAddOwnerModalOpen, setIsAddOwnerModalOpen] = useState(false);
+  const [editingPasswordId, setEditingPasswordId] = useState<string | null>(null);
+  const [changePasswordValue, setChangePasswordValue] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // New Product Form State
   const [formData, setFormData] = useState({
@@ -72,6 +102,11 @@ export const AdminDashboard: React.FC = () => {
     sku: 'PAT-MN-KT99',
     published: true,
   });
+
+  // If not authenticated, render login gate
+  if (!isAdminAuthenticated) {
+    return <AdminLoginModal />;
+  }
 
   // Calculate high-level financial metrics
   const totalRevenue = orders.reduce((sum, ord) => sum + ord.total, 0) + 1484500;
@@ -118,14 +153,14 @@ export const AdminDashboard: React.FC = () => {
       sizesText: p.sizes.join(', '),
       stock: p.stock,
       sku: p.sku,
-      published: p.published !== false,
+      published: p.published,
     });
     setIsAddProductModalOpen(true);
   };
 
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    const imgs = formData.imagesText
+    const images = formData.imagesText
       .split('\n')
       .map((s) => s.trim())
       .filter(Boolean);
@@ -137,27 +172,31 @@ export const AdminDashboard: React.FC = () => {
 
     const productPayload = {
       name: formData.name,
-      slug: formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      subtitle: formData.subtitle || 'Atelier Signature Silhouette',
+      slug: formData.name.toLowerCase().replace(/\s+/g, '-'),
+      subtitle: formData.subtitle || 'Atelier Signature Collection',
       price: Number(formData.price),
       originalPrice: Number(formData.originalPrice),
       category: formData.category,
       gender: formData.gender,
       tag: formData.tag,
-      images: imgs.length > 0 ? imgs : ['https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?q=80&w=1200&auto=format&fit=crop'],
+      images: images.length > 0 ? images : ['https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?q=80&w=1200&auto=format&fit=crop'],
       description: formData.description,
       details: [
-        'Pure heavyweight architectural drape',
-        'Laser-cut finish with concealed hardware',
-        'Handcrafted in Pakistan Atelier',
+        'Signature Monolithic Cut',
+        'Reinforced high-stress bar tacking',
+        'Custom engraved matte metal hardware',
+        'Dry clean or cold wash recommended',
       ],
       fabric: formData.fabric,
       fit: formData.fit,
       sizes: sizes.length > 0 ? sizes : ['S', 'M', 'L', 'XL'],
-      colors: [{ name: 'Obsidian Noir', hex: '#0B0B0B' }],
+      colors: [
+        { name: 'Obsidian Noir', hex: '#0B0B0B' },
+        { name: 'Raw Slate', hex: '#333333' },
+      ],
       stock: Number(formData.stock),
-      rating: 5.0,
-      reviewsCount: 1,
+      rating: 4.9,
+      reviewsCount: 12,
       sku: formData.sku,
       published: formData.published,
     };
@@ -171,20 +210,67 @@ export const AdminDashboard: React.FC = () => {
     setIsAddProductModalOpen(false);
   };
 
+  const handleCreateOwner = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOwnerUsername.trim() || !newOwnerPassword.trim()) {
+      showToast('Please enter both username and password.');
+      return;
+    }
+
+    addOwnerAccount({
+      username: newOwnerUsername.trim().toLowerCase(),
+      password: newOwnerPassword.trim(),
+      name: newOwnerName.trim() || 'Co-Owner',
+      role: newOwnerRole,
+    });
+
+    setNewOwnerName('');
+    setNewOwnerUsername('');
+    setNewOwnerPassword('');
+    setIsAddOwnerModalOpen(false);
+  };
+
+  const handleCopyCredentials = (acc: OwnerAccount) => {
+    const shareText = `THE PATLOON • OWNER PORTAL CREDENTIALS
+Access URL: ${window.location.origin} (Click "Admin" in top bar)
+Owner Name: ${acc.name}
+Role: ${acc.role.replace('_', ' ')}
+Username: ${acc.username}
+Password: ${acc.password}
+
+Please keep these credentials secure.`;
+
+    navigator.clipboard.writeText(shareText);
+    setCopiedId(acc.id);
+    showToast(`Copied credentials for @${acc.username} to clipboard!`);
+    setTimeout(() => setCopiedId(null), 3000);
+  };
+
+  const togglePasswordVisibility = (id: string) => {
+    setShowPasswords((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   return (
     <div id="admin-dashboard" className="min-h-screen bg-[#070707] text-[#F5F5F5] flex flex-col md:flex-row">
       {/* Dark Sidebar */}
       <aside className="w-full md:w-64 bg-[#0D0D0D] border-b md:border-b-0 md:border-r border-[#242424] flex flex-col justify-between p-5">
         <div className="space-y-6">
-          {/* Logo & Portal Badge */}
-          <div className="flex items-center justify-between">
-            <div>
+          {/* Logo & Current Owner Session */}
+          <div>
+            <div className="flex items-center justify-between">
               <span className="font-display font-black text-lg tracking-[0.2em] text-[#F5F5F5]">
                 PATLOON CMS
               </span>
-              <span className="text-[10px] font-mono text-[#8A8A8A] block -mt-1">
-                ATELIER OPERATIONS v2.4
+              <span className="text-[9px] font-mono px-2 py-0.5 bg-[#181818] border border-green-800 text-green-400 uppercase">
+                Active
               </span>
+            </div>
+            <div className="mt-2 p-2.5 bg-[#121212] border border-[#222222] font-mono text-[10px]">
+              <p className="text-[#888888] uppercase">LOGGED IN AS:</p>
+              <p className="text-[#F5F5F5] font-bold truncate">{currentOwner?.name || 'Owner'}</p>
+              <p className="text-[#666666] text-[9px] uppercase tracking-wider">
+                @{currentOwner?.username} • {currentOwner?.role}
+              </p>
             </div>
           </div>
 
@@ -192,7 +278,7 @@ export const AdminDashboard: React.FC = () => {
           <nav className="space-y-1 text-xs font-mono">
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`w-full flex items-center space-x-3 px-3 py-2.5 transition-all text-left ${
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 transition-all text-left cursor-pointer ${
                 activeTab === 'analytics'
                   ? 'bg-[#181818] text-[#F5F5F5] border-l-2 border-white font-bold'
                   : 'text-[#8A8A8A] hover:bg-[#121212] hover:text-[#F5F5F5]'
@@ -204,7 +290,7 @@ export const AdminDashboard: React.FC = () => {
 
             <button
               onClick={() => setActiveTab('products')}
-              className={`w-full flex items-center space-x-3 px-3 py-2.5 transition-all text-left ${
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 transition-all text-left cursor-pointer ${
                 activeTab === 'products'
                   ? 'bg-[#181818] text-[#F5F5F5] border-l-2 border-white font-bold'
                   : 'text-[#8A8A8A] hover:bg-[#121212] hover:text-[#F5F5F5]'
@@ -216,7 +302,7 @@ export const AdminDashboard: React.FC = () => {
 
             <button
               onClick={() => setActiveTab('orders')}
-              className={`w-full flex items-center space-x-3 px-3 py-2.5 transition-all text-left ${
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 transition-all text-left cursor-pointer ${
                 activeTab === 'orders'
                   ? 'bg-[#181818] text-[#F5F5F5] border-l-2 border-white font-bold'
                   : 'text-[#8A8A8A] hover:bg-[#121212] hover:text-[#F5F5F5]'
@@ -227,8 +313,20 @@ export const AdminDashboard: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setActiveTab('owners')}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 transition-all text-left cursor-pointer ${
+                activeTab === 'owners'
+                  ? 'bg-[#181818] text-[#F5F5F5] border-l-2 border-white font-bold'
+                  : 'text-[#8A8A8A] hover:bg-[#121212] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <Key className="w-4 h-4 text-[#E5C158]" />
+              <span className="text-[#F5F5F5]">OWNER ACCESS & PASSWORDS ({ownerAccounts.length})</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('settings')}
-              className={`w-full flex items-center space-x-3 px-3 py-2.5 transition-all text-left ${
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 transition-all text-left cursor-pointer ${
                 activeTab === 'settings'
                   ? 'bg-[#181818] text-[#F5F5F5] border-l-2 border-white font-bold'
                   : 'text-[#8A8A8A] hover:bg-[#121212] hover:text-[#F5F5F5]'
@@ -240,245 +338,146 @@ export const AdminDashboard: React.FC = () => {
           </nav>
         </div>
 
-        {/* Return to Storefront CTA */}
-        <div className="pt-6 border-t border-[#1C1C1C]">
+        {/* Action Controls: Storefront & Logout */}
+        <div className="pt-6 border-t border-[#1C1C1C] space-y-2">
           <button
             onClick={() => setIsAdminOpen(false)}
-            className="w-full py-3 bg-[#141414] hover:bg-[#F5F5F5] text-[#F5F5F5] hover:text-[#050505] border border-[#2B2B2B] text-xs font-mono font-bold tracking-widest uppercase flex items-center justify-center space-x-2 transition-all cursor-pointer"
+            className="w-full py-2.5 bg-[#141414] hover:bg-[#F5F5F5] text-[#F5F5F5] hover:text-[#050505] border border-[#2B2B2B] text-xs font-mono font-bold tracking-widest uppercase flex items-center justify-center space-x-2 transition-all cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>EXIT TO STOREFRONT</span>
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>STOREFRONT</span>
+          </button>
+
+          <button
+            onClick={logoutAdmin}
+            className="w-full py-2.5 bg-red-950/30 hover:bg-red-900/50 text-red-300 border border-red-900/50 text-xs font-mono uppercase tracking-widest flex items-center justify-center space-x-2 transition-all cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>LOG OUT</span>
           </button>
         </div>
       </aside>
 
-      {/* Main Admin Content Area */}
-      <main className="flex-1 p-6 sm:p-8 overflow-y-auto max-h-screen space-y-8 bg-[#070707]">
-        {/* TAB 1: ANALYTICS & OVERVIEW */}
+      {/* Main Admin Content Canvas */}
+      <main className="flex-1 p-6 md:p-10 overflow-y-auto max-h-screen">
+        {/* TAB 1: REVENUE & ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="space-y-8 animate-in fade-in duration-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1C1C1C]">
+            {/* Top Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#1C1C1C] gap-4">
               <div>
                 <span className="text-[10px] font-mono tracking-widest text-[#8A8A8A] uppercase">
-                  FINANCIAL OVERVIEW & INTELLIGENCE
+                  ATELIER EXECUTIVE SUMMARY
                 </span>
                 <h1 className="font-heading font-extrabold text-2xl sm:text-3xl text-[#F5F5F5] uppercase">
-                  ATELIER REVENUE DASHBOARD
+                  FINANCIALS & DISPATCH
                 </h1>
               </div>
 
               <div className="flex items-center space-x-3">
                 <button
                   onClick={handleOpenAdd}
-                  className="px-4 py-2 bg-[#F5F5F5] text-[#050505] text-xs font-mono font-bold uppercase tracking-wider flex items-center space-x-1.5 hover:bg-white transition-colors"
+                  className="px-4 py-2 bg-[#F5F5F5] text-[#050505] text-xs font-mono font-bold uppercase tracking-wider hover:bg-white flex items-center space-x-1.5 transition-all shadow-md cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>NEW PRODUCT</span>
+                  <span>+ NEW SILHOUETTE</span>
                 </button>
               </div>
             </div>
 
-            {/* KPI Metric Cards */}
+            {/* Metric KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-5 bg-[#121212] border border-[#242424]">
-                <div className="flex items-center justify-between text-xs font-mono text-[#8A8A8A]">
-                  <span>TOTAL GROSS SALES</span>
-                  <DollarSign className="w-4 h-4 text-[#F5F5F5]" />
+              <div className="p-5 bg-[#121212] border border-[#242424] space-y-2">
+                <div className="flex items-center justify-between text-[#8A8A8A] text-xs font-mono">
+                  <span>TOTAL GROSS REVENUE</span>
+                  <DollarSign className="w-4 h-4 text-green-400" />
                 </div>
-                <p className="text-2xl font-mono font-bold text-[#F5F5F5] mt-2">
+                <div className="text-2xl font-mono font-bold text-[#F5F5F5]">
                   Rs. {totalRevenue.toLocaleString()}
-                </p>
-                <div className="flex items-center space-x-1 text-[11px] font-mono text-green-400 mt-1">
+                </div>
+                <div className="text-[10px] font-mono text-green-400 flex items-center space-x-1">
                   <TrendingUp className="w-3 h-3" />
-                  <span>+28.4% vs last week</span>
+                  <span>+18.4% vs last billing cycle</span>
                 </div>
               </div>
 
-              <div className="p-5 bg-[#121212] border border-[#242424]">
-                <div className="flex items-center justify-between text-xs font-mono text-[#8A8A8A]">
-                  <span>TOTAL ORDERS</span>
-                  <ShoppingBag className="w-4 h-4 text-[#F5F5F5]" />
+              <div className="p-5 bg-[#121212] border border-[#242424] space-y-2">
+                <div className="flex items-center justify-between text-[#8A8A8A] text-xs font-mono">
+                  <span>FULFILLED ORDERS</span>
+                  <ShoppingBag className="w-4 h-4 text-blue-400" />
                 </div>
-                <p className="text-2xl font-mono font-bold text-[#F5F5F5] mt-2">
+                <div className="text-2xl font-mono font-bold text-[#F5F5F5]">
                   {totalOrdersCount}
-                </p>
-                <p className="text-[11px] font-mono text-[#8A8A8A] mt-1">
-                  Across 12 Pakistani cities & UAE
-                </p>
+                </div>
+                <div className="text-[10px] font-mono text-[#8A8A8A]">
+                  Across Lahore, Karachi, Islamabad & Overseas
+                </div>
               </div>
 
-              <div className="p-5 bg-[#121212] border border-[#242424]">
-                <div className="flex items-center justify-between text-xs font-mono text-[#8A8A8A]">
-                  <span>AVG. BASKET VALUE</span>
-                  <Sparkles className="w-4 h-4 text-[#F5F5F5]" />
+              <div className="p-5 bg-[#121212] border border-[#242424] space-y-2">
+                <div className="flex items-center justify-between text-[#8A8A8A] text-xs font-mono">
+                  <span>AVERAGE BASKET (AOV)</span>
+                  <Sparkles className="w-4 h-4 text-[#E5C158]" />
                 </div>
-                <p className="text-2xl font-mono font-bold text-[#F5F5F5] mt-2">
+                <div className="text-2xl font-mono font-bold text-[#F5F5F5]">
                   Rs. {avgOrderValue.toLocaleString()}
-                </p>
-                <p className="text-[11px] font-mono text-[#8A8A8A] mt-1">
-                  1.8 pieces per checkout
-                </p>
-              </div>
-
-              <div className="p-5 bg-[#121212] border border-[#242424]">
-                <div className="flex items-center justify-between text-xs font-mono text-[#8A8A8A]">
-                  <span>INVENTORY ALERTS</span>
-                  <AlertTriangle className="w-4 h-4 text-[#E5C158]" />
                 </div>
-                <p className="text-2xl font-mono font-bold text-[#E5C158] mt-2">
-                  {lowStockProducts.length} LOW STOCK
-                </p>
-                <p className="text-[11px] font-mono text-[#8A8A8A] mt-1">
-                  Requires atelier restocking
-                </p>
-              </div>
-            </div>
-
-            {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Revenue Area Chart */}
-              <div className="lg:col-span-8 p-6 bg-[#121212] border border-[#242424]">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className="font-heading font-bold text-sm text-[#F5F5F5] uppercase tracking-wider">
-                      REVENUE TRAJECTORY (PKR)
-                    </h3>
-                    <p className="text-xs font-mono text-[#8A8A8A]">Last 7 days performance</p>
-                  </div>
-                  <span className="px-2.5 py-1 bg-[#1A1A1A] border border-[#2E2E2E] text-[10px] font-mono text-green-400">
-                    LIVE ATELIER FEED
-                  </span>
-                </div>
-
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={REVENUE_ANALYTICS} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#F5F5F5" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#F5F5F5" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="date" stroke="#666666" fontSize={11} tickLine={false} />
-                      <YAxis
-                        stroke="#666666"
-                        fontSize={11}
-                        tickLine={false}
-                        tickFormatter={(val) => `Rs.${(val / 1000).toFixed(0)}k`}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#0A0A0A',
-                          borderColor: '#333333',
-                          borderRadius: 0,
-                          color: '#F5F5F5',
-                          fontSize: '11px',
-                          fontFamily: 'monospace',
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="revenue"
-                        stroke="#F5F5F5"
-                        strokeWidth={2}
-                        fillOpacity={1}
-                        fill="url(#colorRevenue)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                <div className="text-[10px] font-mono text-[#8A8A8A]">
+                  2.4 garments per transaction
                 </div>
               </div>
 
-              {/* Order Volume Bar Chart */}
-              <div className="lg:col-span-4 p-6 bg-[#121212] border border-[#242424]">
-                <h3 className="font-heading font-bold text-sm text-[#F5F5F5] uppercase tracking-wider mb-1">
-                  DAILY ORDERS
-                </h3>
-                <p className="text-xs font-mono text-[#8A8A8A] mb-6">Units booked per day</p>
-
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={REVENUE_ANALYTICS} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <XAxis dataKey="date" stroke="#666666" fontSize={11} tickLine={false} />
-                      <YAxis stroke="#666666" fontSize={11} tickLine={false} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#0A0A0A',
-                          borderColor: '#333333',
-                          color: '#F5F5F5',
-                          fontSize: '11px',
-                          fontFamily: 'monospace',
-                        }}
-                      />
-                      <Bar dataKey="orders" fill="#A1A1A1" radius={[2, 2, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+              <div className="p-5 bg-[#121212] border border-[#242424] space-y-2">
+                <div className="flex items-center justify-between text-[#8A8A8A] text-xs font-mono">
+                  <span>LOW INVENTORY ALERT</span>
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
+                </div>
+                <div className="text-2xl font-mono font-bold text-red-400">
+                  {lowStockProducts.length} Items
+                </div>
+                <div className="text-[10px] font-mono text-[#8A8A8A]">
+                  Below 8 units in atelier warehouse
                 </div>
               </div>
             </div>
 
-            {/* Inventory Alerts & Top Products */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Low Stock Alerts */}
-              <div className="p-6 bg-[#121212] border border-[#242424]">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-heading font-bold text-sm text-[#F5F5F5] uppercase tracking-wider flex items-center space-x-2">
-                    <AlertTriangle className="w-4 h-4 text-[#E5C158]" />
-                    <span>LOW INVENTORY RESTOCK QUEUE</span>
+            {/* Revenue Trend Visualizer */}
+            <div className="p-6 bg-[#121212] border border-[#242424] space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-heading font-bold text-sm text-[#F5F5F5] uppercase">
+                    ATELIER REVENUE TRAJECTORY (PKR)
                   </h3>
-                </div>
-
-                <div className="space-y-3">
-                  {lowStockProducts.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between p-3 bg-[#171717] border border-[#262626]">
-                      <div className="flex items-center space-x-3">
-                        <img src={p.images[0]} alt={p.name} className="w-10 h-12 object-cover bg-black" />
-                        <div>
-                          <p className="text-xs font-heading font-bold text-[#F5F5F5] uppercase">{p.name}</p>
-                          <p className="text-[10px] font-mono text-[#8A8A8A]">{p.sku}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="px-2 py-0.5 bg-[#2B1B10] text-[#E5C158] text-[10px] font-mono border border-[#4D3319]">
-                          {p.stock} REMAINING
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                  <p className="text-[11px] font-mono text-[#8A8A8A]">
+                    Monthly revenue breakdown & seasonal sales spike
+                  </p>
                 </div>
               </div>
 
-              {/* Recent Orders Stream */}
-              <div className="p-6 bg-[#121212] border border-[#242424]">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-heading font-bold text-sm text-[#F5F5F5] uppercase tracking-wider">
-                    RECENT CLIENT ORDERS
-                  </h3>
-                  <button
-                    onClick={() => setActiveTab('orders')}
-                    className="text-xs font-mono text-[#8A8A8A] hover:text-[#F5F5F5]"
-                  >
-                    VIEW ALL →
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {orders.slice(0, 4).map((ord) => (
-                    <div key={ord.id} className="flex items-center justify-between p-3 bg-[#171717] border border-[#262626] text-xs font-mono">
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[#F5F5F5] font-bold">{ord.id}</span>
-                          <span className="text-[#8A8A8A]">({ord.customerName})</span>
-                        </div>
-                        <p className="text-[10px] text-[#666666] mt-0.5">{ord.city}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-[#F5F5F5]">Rs. {ord.total.toLocaleString()}</p>
-                        <span className="text-[9px] text-[#A1A1A1]">{ord.status}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={REVENUE_ANALYTICS} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F5F5F5" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#F5F5F5" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="month" stroke="#444444" tick={{ fill: '#888888', fontSize: 11 }} />
+                    <YAxis stroke="#444444" tick={{ fill: '#888888', fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#0F0F0F',
+                        borderColor: '#2F2F2F',
+                        color: '#F5F5F5',
+                        fontSize: '11px',
+                        fontFamily: 'monospace',
+                      }}
+                      formatter={(val: any) => [`Rs. ${Number(val).toLocaleString()}`, 'Revenue']}
+                    />
+                    <Area type="monotone" dataKey="revenue" stroke="#F5F5F5" strokeWidth={2} fillOpacity={1} fill="url(#revenueGrad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
@@ -487,127 +486,110 @@ export const AdminDashboard: React.FC = () => {
         {/* TAB 2: PRODUCTS CMS */}
         {activeTab === 'products' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1C1C1C]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#1C1C1C] gap-4">
               <div>
                 <span className="text-[10px] font-mono tracking-widest text-[#8A8A8A] uppercase">
-                  CATALOG & SILHOUETTE MANAGEMENT
+                  CATALOG & INVENTORY MANAGEMENT
                 </span>
-                <h1 className="font-heading font-extrabold text-2xl sm:text-3xl text-[#F5F5F5] uppercase">
-                  PRODUCTS CMS ({products.length})
+                <h1 className="font-heading font-extrabold text-2xl text-[#F5F5F5] uppercase">
+                  ACTIVE GARMENT ARCHIVE ({products.length})
                 </h1>
               </div>
 
               <button
                 onClick={handleOpenAdd}
-                className="px-5 py-3 bg-[#F5F5F5] text-[#050505] text-xs font-mono font-bold uppercase tracking-wider flex items-center space-x-2 hover:bg-white transition-colors"
+                className="px-4 py-2 bg-[#F5F5F5] text-[#050505] text-xs font-mono font-bold uppercase tracking-wider hover:bg-white flex items-center space-x-1.5 cursor-pointer shadow-md"
               >
-                <Plus className="w-4 h-4" />
-                <span>+ ADD PRODUCT</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ ADD NEW SILHOUETTE</span>
               </button>
             </div>
 
-            {/* Search filter in CMS */}
-            <div className="relative">
-              <Search className="w-4 h-4 text-[#666666] absolute left-3 top-1/2 -translate-y-1/2" />
+            {/* Search Filter */}
+            <div className="relative max-w-md">
+              <Search className="w-4 h-4 text-[#8A8A8A] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="SEARCH CATALOG BY NAME, SKU, OR CATEGORY..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
-                className="w-full bg-[#111111] border border-[#242424] pl-10 pr-4 py-2.5 text-xs font-mono text-[#F5F5F5] focus:outline-none focus:border-[#555555] uppercase"
+                placeholder="Search by silhouette name, category, or SKU..."
+                className="w-full bg-[#121212] border border-[#242424] pl-9 pr-3 py-2 text-xs font-mono text-[#F5F5F5] focus:outline-none focus:border-[#555555]"
               />
             </div>
 
             {/* Products Table */}
             <div className="bg-[#121212] border border-[#242424] overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-[#181818] text-[#8A8A8A] border-b border-[#242424]">
+                <thead className="bg-[#161616] text-[#8A8A8A] uppercase text-[10px] tracking-wider border-b border-[#242424]">
                   <tr>
-                    <th className="p-3.5">GARMENT</th>
-                    <th className="p-3.5">CATEGORY</th>
-                    <th className="p-3.5">PRICE</th>
-                    <th className="p-3.5">STOCK</th>
-                    <th className="p-3.5">TAG</th>
-                    <th className="p-3.5 text-right">ACTIONS</th>
+                    <th className="p-4">SILHOUETTE</th>
+                    <th className="p-4">CATEGORY</th>
+                    <th className="p-4">PRICE</th>
+                    <th className="p-4">STOCK</th>
+                    <th className="p-4">SKU</th>
+                    <th className="p-4 text-right">ACTIONS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#1C1C1C]">
+                <tbody className="divide-y divide-[#1F1F1F]">
                   {products
                     .filter((p) =>
-                      productSearch
-                        ? p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                          p.sku.toLowerCase().includes(productSearch.toLowerCase()) ||
-                          p.category.toLowerCase().includes(productSearch.toLowerCase())
-                        : true
+                      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                      p.category.toLowerCase().includes(productSearch.toLowerCase()) ||
+                      p.sku.toLowerCase().includes(productSearch.toLowerCase())
                     )
                     .map((p) => (
-                      <tr key={p.id} className="hover:bg-[#161616] transition-colors">
-                        <td className="p-3.5 flex items-center space-x-3">
-                          <img
-                            src={p.images[0]}
-                            alt={p.name}
-                            className="w-10 h-14 object-cover bg-black border border-[#222222]"
-                          />
-                          <div>
-                            <p className="font-heading font-bold text-xs text-[#F5F5F5] uppercase">
-                              {p.name}
-                            </p>
-                            <p className="text-[10px] text-[#777777]">{p.sku}</p>
+                      <tr key={p.id} className="hover:bg-[#181818] transition-colors">
+                        <td className="p-4">
+                          <div className="flex items-center space-x-3">
+                            <img
+                              src={p.images[0]}
+                              alt={p.name}
+                              className="w-10 h-14 object-cover border border-[#242424]"
+                            />
+                            <div>
+                              <p className="font-bold text-[#F5F5F5]">{p.name}</p>
+                              <p className="text-[10px] text-[#8A8A8A]">{p.gender}</p>
+                            </div>
                           </div>
                         </td>
-                        <td className="p-3.5 text-[#A1A1A1]">{p.category}</td>
-                        <td className="p-3.5 font-bold text-[#F5F5F5]">
-                          Rs. {p.price.toLocaleString()}
-                        </td>
-                        <td className="p-3.5">
+                        <td className="p-4 text-[#A1A1A1]">{p.category}</td>
+                        <td className="p-4 text-[#F5F5F5] font-bold">Rs. {p.price.toLocaleString()}</td>
+                        <td className="p-4">
                           <span
                             className={`px-2 py-0.5 text-[10px] border ${
                               p.stock <= 5
-                                ? 'bg-red-950/40 text-red-400 border-red-900'
-                                : 'bg-[#181818] text-[#C5C5C5] border-[#2A2A2A]'
+                                ? 'bg-red-950/40 text-red-400 border-red-800'
+                                : 'bg-[#181818] text-green-400 border-[#282828]'
                             }`}
                           >
-                            {p.stock} UNITS
+                            {p.stock} units
                           </span>
                         </td>
-                        <td className="p-3.5">
-                          {p.tag ? (
-                            <span className="px-2 py-0.5 bg-[#181818] text-[#F5F5F5] border border-[#2D2D2D] text-[9px]">
-                              {p.tag}
-                            </span>
-                          ) : (
-                            <span className="text-[#555555]">-</span>
-                          )}
-                        </td>
-                        <td className="p-3.5 text-right space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedProduct(p);
-                              setIsAdminOpen(false);
-                            }}
-                            className="p-1.5 text-[#8A8A8A] hover:text-white bg-[#1A1A1A] hover:bg-[#252525]"
-                            title="Live Store Preview"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleOpenEdit(p)}
-                            className="p-1.5 text-[#8A8A8A] hover:text-white bg-[#1A1A1A] hover:bg-[#252525]"
-                            title="Edit Garment"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Remove "${p.name}" from catalog?`)) {
-                                deleteProduct(p.id);
-                              }
-                            }}
-                            className="p-1.5 text-[#8A8A8A] hover:text-red-400 bg-[#1A1A1A] hover:bg-[#252525]"
-                            title="Delete Garment"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        <td className="p-4 text-[#8A8A8A]">{p.sku}</td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={() => setSelectedProduct(p)}
+                              className="p-1.5 hover:bg-[#252525] text-[#A1A1A1] hover:text-white"
+                              title="View on Storefront"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenEdit(p)}
+                              className="p-1.5 hover:bg-[#252525] text-[#A1A1A1] hover:text-white"
+                              title="Edit Silhouette"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => deleteProduct(p.id)}
+                              className="p-1.5 hover:bg-red-950 text-[#8A8A8A] hover:text-red-400"
+                              title="Delete from Catalog"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -617,67 +599,64 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3: ORDERS MANAGEMENT CMS */}
+        {/* TAB 3: ORDERS & LOGISTICS */}
         {activeTab === 'orders' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="pb-4 border-b border-[#1C1C1C]">
-              <span className="text-[10px] font-mono tracking-widest text-[#8A8A8A] uppercase">
-                LOGISTICS & TCS FULFILLMENT
-              </span>
-              <h1 className="font-heading font-extrabold text-2xl sm:text-3xl text-[#F5F5F5] uppercase">
-                DISPATCH & ORDERS CMS ({orders.length})
-              </h1>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#1C1C1C] gap-4">
+              <div>
+                <span className="text-[10px] font-mono tracking-widest text-[#8A8A8A] uppercase">
+                  DISPATCH & CLIENT PURCHASES
+                </span>
+                <h1 className="font-heading font-extrabold text-2xl text-[#F5F5F5] uppercase">
+                  LOGISTICS DISPATCH ({orders.length})
+                </h1>
+              </div>
             </div>
 
-            {/* Orders Stream */}
+            {/* Orders Search */}
+            <div className="relative max-w-md">
+              <Search className="w-4 h-4 text-[#8A8A8A] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+                placeholder="Search by client name, order ID, or city..."
+                className="w-full bg-[#121212] border border-[#242424] pl-9 pr-3 py-2 text-xs font-mono text-[#F5F5F5] focus:outline-none focus:border-[#555555]"
+              />
+            </div>
+
+            {/* Orders Feed */}
             <div className="space-y-4">
               {orders.map((ord) => (
-                <div key={ord.id} className="bg-[#121212] border border-[#242424] p-5 space-y-4">
+                <div key={ord.id} className="p-5 bg-[#121212] border border-[#242424] space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#1F1F1F] gap-2">
-                    <div className="flex items-center space-x-3">
-                      <span className="font-mono text-sm font-bold text-[#F5F5F5]">{ord.id}</span>
-                      <span className="text-xs font-mono text-[#8A8A8A]">{ord.date}</span>
-                    </div>
-
-                    {/* Status Changer Buttons */}
-                    <div className="flex items-center space-x-1.5 text-xs font-mono">
-                      {(['Pending', 'Processing', 'Shipped', 'Delivered'] as OrderStatus[]).map((st) => (
-                        <button
-                          key={st}
-                          onClick={() => updateOrderStatus(ord.id, st)}
-                          className={`px-2.5 py-1 uppercase text-[10px] tracking-wider transition-all border ${
-                            ord.status === st
-                              ? 'bg-[#F5F5F5] text-[#050505] font-bold border-white'
-                              : 'bg-[#181818] text-[#8A8A8A] border-[#2A2A2A] hover:text-[#F5F5F5]'
-                          }`}
-                        >
-                          {st}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
                     <div>
-                      <span className="text-[10px] text-[#777777] uppercase">CLIENT INFO</span>
-                      <p className="font-bold text-[#F5F5F5] mt-0.5">{ord.customerName}</p>
-                      <p className="text-[#A1A1A1]">{ord.phone}</p>
-                      <p className="text-[#A1A1A1]">{ord.email}</p>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-[#777777] uppercase">DESTINATION & METHOD</span>
-                      <p className="text-[#F5F5F5] font-bold mt-0.5">{ord.city}</p>
-                      <p className="text-[#A1A1A1]">{ord.address}</p>
-                      <p className="text-[#8A8A8A] mt-1">Payment: <strong className="text-[#F5F5F5]">{ord.paymentMethod}</strong></p>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-[#777777] uppercase">DISPATCH TRACKING</span>
-                      <p className="text-[#F5F5F5] font-mono mt-0.5">{ord.trackingNumber || 'Pending allocation'}</p>
-                      <p className="text-sm font-bold text-[#F5F5F5] mt-2">
-                        TOTAL: Rs. {ord.total.toLocaleString()}
+                      <div className="flex items-center space-x-3">
+                        <span className="font-mono font-bold text-sm text-[#F5F5F5]">{ord.id}</span>
+                        <span className="text-[10px] font-mono text-[#8A8A8A]">{ord.date}</span>
+                      </div>
+                      <p className="text-xs text-[#A1A1A1] mt-0.5">
+                        Client: <strong className="text-white">{ord.customerName}</strong> ({ord.city}) • {ord.phone}
                       </p>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xs font-mono font-bold text-[#F5F5F5]">
+                        Rs. {ord.total.toLocaleString()}
+                      </span>
+
+                      {/* Status Selector */}
+                      <select
+                        value={ord.status}
+                        onChange={(e) => updateOrderStatus(ord.id, e.target.value as OrderStatus)}
+                        className="bg-[#181818] border border-[#2E2E2E] px-2.5 py-1 text-[11px] font-mono text-[#F5F5F5] focus:outline-none"
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="Processing">Processing</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </select>
                     </div>
                   </div>
 
@@ -696,7 +675,327 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 4: STORE SETTINGS & ANNOUNCEMENT TICKER */}
+        {/* TAB 4: OWNER ACCESS & CREDENTIALS MANAGEMENT (GIVING TO OTHER OWNER) */}
+        {activeTab === 'owners' && (
+          <div className="space-y-8 animate-in fade-in duration-200 max-w-4xl">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#1C1C1C] gap-4">
+              <div>
+                <span className="text-[10px] font-mono tracking-widest text-[#8A8A8A] uppercase">
+                  SECURITY & MULTI-OWNER PASSWORDS
+                </span>
+                <h1 className="font-heading font-extrabold text-2xl text-[#F5F5F5] uppercase">
+                  OWNER ACCESS & CREDENTIALS
+                </h1>
+                <p className="text-xs font-mono text-[#888888] mt-1">
+                  Manage usernames and passwords to give to other owners and partners
+                </p>
+              </div>
+
+              <button
+                onClick={() => setIsAddOwnerModalOpen(true)}
+                className="px-4 py-2.5 bg-[#F5F5F5] text-black font-mono font-bold text-xs uppercase tracking-wider hover:bg-white flex items-center space-x-2 transition-all cursor-pointer shadow-md"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ ADD NEW OWNER</span>
+              </button>
+            </div>
+
+            {/* Instruction Card for Sharing with Other Owner */}
+            <div className="p-5 bg-[#101010] border border-[#262626] flex items-start space-x-4">
+              <div className="p-2 bg-[#181818] border border-[#333333] mt-0.5">
+                <Share2 className="w-5 h-5 text-[#E5C158]" />
+              </div>
+              <div className="text-xs font-mono space-y-1">
+                <h4 className="font-bold text-[#F5F5F5] uppercase">HOW TO GIVE ACCESS TO ANOTHER OWNER:</h4>
+                <p className="text-[#A1A1A1] leading-relaxed">
+                  1. Click <strong>"Copy Access Info"</strong> on any owner account card below to automatically copy their exact login credentials and store link.
+                </p>
+                <p className="text-[#A1A1A1] leading-relaxed">
+                  2. Send the copied details to your co-owner, partner, or store manager via message/email.
+                </p>
+                <p className="text-[#A1A1A1] leading-relaxed">
+                  3. They open the app, click the <strong>"Admin"</strong> button in the top navigation bar, and log in with their username and password!
+                </p>
+              </div>
+            </div>
+
+            {/* Configured Owner Accounts List */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-mono text-[#888888] uppercase tracking-widest">
+                ACTIVE OWNER & PARTNER ACCOUNTS ({ownerAccounts.length})
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {ownerAccounts.map((acc) => {
+                  const isMasked = !showPasswords[acc.id];
+                  const isCurrent = currentOwner?.id === acc.id;
+                  const isRoot = acc.username.toLowerCase() === 'patloon';
+
+                  return (
+                    <div
+                      key={acc.id}
+                      className={`p-5 border transition-all space-y-4 font-mono ${
+                        isRoot
+                          ? 'bg-[#12130F] border-[#443C1D] shadow-lg shadow-black/40'
+                          : isCurrent
+                          ? 'border-green-800/80 bg-[#131513]'
+                          : 'bg-[#121212] border-[#242424]'
+                      }`}
+                    >
+                      {/* Top Header */}
+                      <div className="flex items-center justify-between pb-3 border-b border-[#1F1F1F]">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-sm text-[#F5F5F5]">{acc.name}</span>
+                            {isRoot && (
+                              <span className="text-[9px] px-1.5 py-0.5 bg-[#E5C158]/20 text-[#E5C158] border border-[#E5C158]/60 uppercase font-bold flex items-center space-x-1">
+                                <Crown className="w-2.5 h-2.5" />
+                                <span>Master Admin</span>
+                              </span>
+                            )}
+                            {isCurrent && !isRoot && (
+                              <span className="text-[9px] px-1.5 py-0.5 bg-green-950 text-green-300 border border-green-800 uppercase font-bold">
+                                You
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-[#777777] uppercase tracking-wider block mt-0.5">
+                            Role: <strong className="text-[#AAAAAA]">{acc.role.replace('_', ' ')}</strong>
+                            {isRoot && <span className="text-[#E5C158] ml-1.5 font-bold">• Protected Root Account</span>}
+                          </span>
+                        </div>
+
+                        <span className="text-[9px] px-2 py-0.5 bg-[#181818] text-[#888888] border border-[#282828] uppercase">
+                          Created {acc.createdAt}
+                        </span>
+                      </div>
+
+                      {/* Username & Password Display */}
+                      <div className="space-y-2 bg-[#0A0A0A] p-3 border border-[#1E1E1E] text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#777777] uppercase text-[10px]">Username:</span>
+                          <span className="font-bold text-[#F5F5F5] selection:bg-white selection:text-black">
+                            {acc.username}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#777777] uppercase text-[10px]">Password:</span>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-[#E5C158] font-mono">
+                              {isMasked ? '••••••••••••' : acc.password}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => togglePasswordVisibility(acc.id)}
+                              className="text-[#666666] hover:text-white transition-colors cursor-pointer"
+                              title={isMasked ? 'Show password' : 'Hide password'}
+                            >
+                              {isMasked ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="pt-2 flex items-center justify-between gap-2">
+                        {/* Copy for other owner */}
+                        <button
+                          onClick={() => handleCopyCredentials(acc)}
+                          className={`flex-1 py-2 px-3 text-[11px] font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
+                            copiedId === acc.id
+                              ? 'bg-green-900 text-green-200 border border-green-700'
+                              : 'bg-[#F5F5F5] hover:bg-white text-black'
+                          }`}
+                        >
+                          {copiedId === acc.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>COPIED!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>GIVE TO OWNER (COPY)</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Change Password */}
+                        <button
+                          onClick={() => {
+                            setEditingPasswordId(acc.id);
+                            setChangePasswordValue(acc.password);
+                          }}
+                          className="p-2 bg-[#181818] hover:bg-[#222222] border border-[#282828] text-[#888888] hover:text-white text-[10px] uppercase cursor-pointer"
+                          title="Change password"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Delete Account */}
+                        {!isRoot && ownerAccounts.length > 1 && (
+                          <button
+                            onClick={() => deleteOwnerAccount(acc.id)}
+                            className="p-2 bg-[#181818] hover:bg-red-950 border border-[#282828] text-[#888888] hover:text-red-400 text-[10px] uppercase cursor-pointer"
+                            title="Revoke access"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {isRoot && (
+                          <div
+                            className="p-2 bg-[#16140E] border border-[#3A3319] text-[#E5C158] text-[10px] uppercase flex items-center space-x-1 cursor-default"
+                            title="Root Admin cannot be deleted"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Change Password Modal */}
+            {editingPasswordId && (
+              <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+                <div className="w-full max-w-sm bg-[#0E0E0E] border border-[#262626] p-6 space-y-4 font-mono text-xs shadow-2xl">
+                  <h3 className="font-bold text-sm uppercase text-[#F5F5F5]">CHANGE OWNER PASSWORD</h3>
+                  <div>
+                    <label className="block text-[10px] text-[#888888] uppercase mb-1">New Password</label>
+                    <input
+                      type="text"
+                      value={changePasswordValue}
+                      onChange={(e) => setChangePasswordValue(e.target.value)}
+                      className="w-full bg-[#161616] border border-[#2E2E2E] p-2.5 text-[#F5F5F5] focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex justify-end space-x-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingPasswordId(null)}
+                      className="px-4 py-2 bg-[#181818] text-[#888888] hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (changePasswordValue.trim()) {
+                          updateOwnerPassword(editingPasswordId, changePasswordValue.trim());
+                          setEditingPasswordId(null);
+                        }
+                      }}
+                      className="px-4 py-2 bg-[#F5F5F5] text-black font-bold uppercase"
+                    >
+                      Update Password
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Provision New Owner Account Modal */}
+            {isAddOwnerModalOpen && (
+              <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+                <div className="w-full max-w-md bg-[#0E0E0E] border border-[#262626] p-6 sm:p-8 space-y-5 font-mono text-xs shadow-2xl">
+                  <div className="flex items-center justify-between pb-3 border-b border-[#1F1F1F]">
+                    <h3 className="font-bold text-sm uppercase text-[#F5F5F5] flex items-center space-x-2">
+                      <UserPlus className="w-4 h-4" />
+                      <span>CREATE OWNER CREDENTIALS</span>
+                    </h3>
+                    <button
+                      onClick={() => setIsAddOwnerModalOpen(false)}
+                      className="text-[#888888] hover:text-white"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleCreateOwner} className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] text-[#888888] uppercase mb-1">
+                        Owner / Partner Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newOwnerName}
+                        onChange={(e) => setNewOwnerName(e.target.value)}
+                        placeholder="e.g. Abdullah (Partner)"
+                        className="w-full bg-[#161616] border border-[#2E2E2E] p-2.5 text-[#F5F5F5] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-[#888888] uppercase mb-1">
+                        Username (for Login)
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newOwnerUsername}
+                        onChange={(e) => setNewOwnerUsername(e.target.value)}
+                        placeholder="e.g. abdullah or partner2"
+                        className="w-full bg-[#161616] border border-[#2E2E2E] p-2.5 text-[#F5F5F5] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-[#888888] uppercase mb-1">
+                        Password
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newOwnerPassword}
+                        onChange={(e) => setNewOwnerPassword(e.target.value)}
+                        placeholder="e.g. patloon_partner_2026"
+                        className="w-full bg-[#161616] border border-[#2E2E2E] p-2.5 text-[#F5F5F5] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-[#888888] uppercase mb-1">
+                        Role
+                      </label>
+                      <select
+                        value={newOwnerRole}
+                        onChange={(e) => setNewOwnerRole(e.target.value as any)}
+                        className="w-full bg-[#161616] border border-[#2E2E2E] p-2.5 text-[#F5F5F5] focus:outline-none uppercase text-xs"
+                      >
+                        <option value="CO_OWNER">Co-Owner (Full Admin Access)</option>
+                        <option value="STORE_MANAGER">Store Manager (Catalog & Dispatch)</option>
+                        <option value="MASTER_OWNER">Master Owner</option>
+                      </select>
+                    </div>
+
+                    <div className="flex justify-end space-x-2 pt-3 border-t border-[#1F1F1F]">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddOwnerModalOpen(false)}
+                        className="px-4 py-2 bg-[#181818] text-[#888888] hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2 bg-[#F5F5F5] text-black font-bold uppercase"
+                      >
+                        Create & Save Owner
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 5: STORE SETTINGS & ANNOUNCEMENT TICKER */}
         {activeTab === 'settings' && (
           <div className="space-y-6 max-w-2xl animate-in fade-in duration-200">
             <div className="pb-4 border-b border-[#1C1C1C]">
@@ -720,7 +1019,7 @@ export const AdminDashboard: React.FC = () => {
               />
               <button
                 onClick={() => showToast('Ticker banner updated live!')}
-                className="px-6 py-2.5 bg-[#F5F5F5] text-[#050505] text-xs font-mono font-bold uppercase tracking-wider"
+                className="px-6 py-2.5 bg-[#F5F5F5] text-[#050505] text-xs font-mono font-bold uppercase tracking-wider cursor-pointer"
               >
                 SAVE TICKER CHANGES
               </button>
@@ -745,7 +1044,7 @@ export const AdminDashboard: React.FC = () => {
               </h3>
               <button
                 onClick={() => setIsAddProductModalOpen(false)}
-                className="text-[#8A8A8A] hover:text-white"
+                className="text-[#8A8A8A] hover:text-white cursor-pointer"
               >
                 ✕
               </button>
@@ -758,7 +1057,6 @@ export const AdminDashboard: React.FC = () => {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. MONOLITH EMBROIDERED KURTA"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full bg-[#141414] border border-[#282828] p-2.5 text-[#F5F5F5] focus:outline-none focus:border-[#555555]"
@@ -766,10 +1064,9 @@ export const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[#8A8A8A] mb-1 uppercase">SUBTITLE</label>
+                  <label className="block text-[#8A8A8A] mb-1 uppercase">SUBTITLE / TAGLINE</label>
                   <input
                     type="text"
-                    placeholder="e.g. Pure Matte Egyptian Cotton"
                     value={formData.subtitle}
                     onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
                     className="w-full bg-[#141414] border border-[#282828] p-2.5 text-[#F5F5F5] focus:outline-none focus:border-[#555555]"
@@ -790,7 +1087,7 @@ export const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[#8A8A8A] mb-1 uppercase">SALE/ORIGINAL PRICE</label>
+                  <label className="block text-[#8A8A8A] mb-1 uppercase">ORIGINAL PRICE (PKR)</label>
                   <input
                     type="number"
                     value={formData.originalPrice}
@@ -929,7 +1226,7 @@ export const AdminDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddProductModalOpen(false)}
-                  className="px-5 py-2.5 bg-[#181818] border border-[#282828] text-[#8A8A8A] hover:text-white"
+                  className="px-5 py-2.5 bg-[#181818] border border-[#282828] text-[#8A8A8A] hover:text-white cursor-pointer"
                 >
                   CANCEL
                 </button>

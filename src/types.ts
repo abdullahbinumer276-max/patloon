@@ -86,3 +86,13 @@ export interface LookbookLook {
   image: string;
   hotspots: LookbookHotspot[];
 }
+
+export interface OwnerAccount {
+  id: string;
+  username: string;
+  password: string;
+  name: string;
+  role: 'MASTER_OWNER' | 'CO_OWNER' | 'STORE_MANAGER';
+  createdAt: string;
+  lastLogin?: string;
+}

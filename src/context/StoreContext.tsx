@@ -1,6 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, CartItem, Order, OrderStatus, ProductCategory, ProductColor } from '../types';
+import { Product, CartItem, Order, OrderStatus, ProductCategory, ProductColor, OwnerAccount } from '../types';
 import { INITIAL_PRODUCTS, INITIAL_ORDERS } from '../data/products';
+
+export const INITIAL_OWNER_ACCOUNTS: OwnerAccount[] = [
+  {
+    id: 'owner-master-root',
+    username: 'patloon',
+    password: 'xyzxyzxyz',
+    name: 'Patloon Master Admin',
+    role: 'MASTER_OWNER',
+    createdAt: 'Aug 19, 2026',
+    lastLogin: 'Just now',
+  },
+  {
+    id: 'owner-partner-2',
+    username: 'partner',
+    password: 'atelier2026',
+    name: 'Co-Owner (Partner)',
+    role: 'CO_OWNER',
+    createdAt: 'Aug 19, 2026',
+  },
+];
 
 interface StoreContextType {
   products: Product[];
@@ -47,18 +67,31 @@ interface StoreContextType {
   setSiteImageOverride: (key: string, dataUrl: string) => void;
   getSiteImage: (key: string, fallbackUrl: string) => string;
   resetSiteImages: () => void;
+  // Multi-Owner Security & Credentials
+  ownerAccounts: OwnerAccount[];
+  currentOwner: OwnerAccount | null;
+  isAdminAuthenticated: boolean;
+  isMasterOwner: boolean;
+  loginAdmin: (username: string, password: string) => boolean;
+  logoutAdmin: () => void;
+  addOwnerAccount: (account: Omit<OwnerAccount, 'id' | 'createdAt'>) => OwnerAccount;
+  updateOwnerPassword: (id: string, newPassword: string) => void;
+  deleteOwnerAccount: (id: string) => void;
+  resetOwnerAccounts: () => void;
   toastMessage: string | null;
   showToast: (msg: string) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY_PRODUCTS = 'patloon_products_v2';
-const LOCAL_STORAGE_KEY_CART = 'patloon_cart_v2';
-const LOCAL_STORAGE_KEY_WISHLIST = 'patloon_wishlist_v2';
-const LOCAL_STORAGE_KEY_ORDERS = 'patloon_orders_v2';
-const LOCAL_STORAGE_KEY_ANNOUNCEMENT = 'patloon_announcement_v2';
-const LOCAL_STORAGE_KEY_IMAGES = 'patloon_site_images_v2';
+const LOCAL_STORAGE_KEY_PRODUCTS = 'patloon_products_v3';
+const LOCAL_STORAGE_KEY_CART = 'patloon_cart_v3';
+const LOCAL_STORAGE_KEY_WISHLIST = 'patloon_wishlist_v3';
+const LOCAL_STORAGE_KEY_ORDERS = 'patloon_orders_v3';
+const LOCAL_STORAGE_KEY_ANNOUNCEMENT = 'patloon_announcement_v3';
+const LOCAL_STORAGE_KEY_IMAGES = 'patloon_site_images_v3';
+const LOCAL_STORAGE_KEY_OWNERS = 'patloon_owner_accounts_v3';
+const LOCAL_STORAGE_KEY_AUTH_OWNER = 'patloon_current_auth_owner_v3';
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Products State
@@ -119,7 +152,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       'WORLDWIDE EXPRESS SHIPPING • COMPLIMENTARY DELIVERY OVER RS. 10,000 • USE CODE PATLOON10 FOR 10% OFF';
   });
 
-  // Site Image Overrides (for Hero, Lookbook, Collections, etc. uploaded via PNG)
+  // Site Image Overrides
   const [siteImageOverrides, setSiteImageOverrides] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY_IMAGES);
     if (saved) {
@@ -130,6 +163,36 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
     return {};
+  });
+
+  // Owner Accounts & Root Admin Protection
+  const [ownerAccounts, setOwnerAccounts] = useState<OwnerAccount[]>(() => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY_OWNERS);
+    if (saved) {
+      try {
+        const parsed: OwnerAccount[] = JSON.parse(saved);
+        const hasPatloon = parsed.some((acc) => acc.username.toLowerCase() === 'patloon');
+        if (!hasPatloon) {
+          return [INITIAL_OWNER_ACCOUNTS[0], ...parsed];
+        }
+        return parsed;
+      } catch (e) {
+        console.error('Failed to parse saved owners', e);
+      }
+    }
+    return INITIAL_OWNER_ACCOUNTS;
+  });
+
+  const [currentOwner, setCurrentOwner] = useState<OwnerAccount | null>(() => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY_AUTH_OWNER);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse active owner', e);
+      }
+    }
+    return null;
   });
 
   // UI Modals & Drawers
@@ -170,11 +233,128 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem(LOCAL_STORAGE_KEY_IMAGES, JSON.stringify(siteImageOverrides));
   }, [siteImageOverrides]);
 
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY_OWNERS, JSON.stringify(ownerAccounts));
+  }, [ownerAccounts]);
+
+  useEffect(() => {
+    if (currentOwner) {
+      localStorage.setItem(LOCAL_STORAGE_KEY_AUTH_OWNER, JSON.stringify(currentOwner));
+    } else {
+      localStorage.removeItem(LOCAL_STORAGE_KEY_AUTH_OWNER);
+    }
+  }, [currentOwner]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage((current) => (current === msg ? null : current));
     }, 3200);
+  };
+
+  // Check if active user is Master Root Owner
+  const isMasterOwner = currentOwner?.username?.toLowerCase() === 'patloon';
+
+  // Admin Authentication Operations
+  const loginAdmin = (username: string, password: string): boolean => {
+    const cleanUser = username.trim().toLowerCase();
+    const cleanPass = password.trim();
+
+    // Direct root match check
+    if (cleanUser === 'patloon' && cleanPass === 'xyzxyzxyz') {
+      const rootAcc = ownerAccounts.find(a => a.username.toLowerCase() === 'patloon') || INITIAL_OWNER_ACCOUNTS[0];
+      const updatedAccount: OwnerAccount = {
+        ...rootAcc,
+        lastLogin: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setCurrentOwner(updatedAccount);
+      setOwnerAccounts(prev => prev.map(a => a.username.toLowerCase() === 'patloon' ? updatedAccount : a));
+      showToast(`Master Admin Authenticated as @patloon`);
+      return true;
+    }
+
+    const matched = ownerAccounts.find(
+      (acc) => acc.username.toLowerCase() === cleanUser && acc.password === cleanPass
+    );
+
+    if (matched) {
+      const updatedAccount: OwnerAccount = {
+        ...matched,
+        lastLogin: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      setCurrentOwner(updatedAccount);
+      setOwnerAccounts((prev) =>
+        prev.map((acc) => (acc.id === matched.id ? updatedAccount : acc))
+      );
+      showToast(`Welcome, ${matched.name}. Admin Portal Authenticated.`);
+      return true;
+    } else {
+      showToast(`Invalid username or password. Please verify credentials.`);
+      return false;
+    }
+  };
+
+  const logoutAdmin = () => {
+    setCurrentOwner(null);
+    setIsAdminOpen(false);
+    showToast(`Logged out from Owner Portal.`);
+  };
+
+  const addOwnerAccount = (account: Omit<OwnerAccount, 'id' | 'createdAt'>): OwnerAccount => {
+    if (account.username.toLowerCase() === 'patloon') {
+      showToast(`The username 'patloon' is reserved for the Master Root Admin.`);
+      throw new Error('Reserved username');
+    }
+
+    const newAccount: OwnerAccount = {
+      ...account,
+      id: `owner-${Date.now().toString().slice(-4)}`,
+      createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    };
+
+    setOwnerAccounts((prev) => [...prev, newAccount]);
+    showToast(`Created owner credentials for @${newAccount.username}`);
+    return newAccount;
+  };
+
+  const updateOwnerPassword = (id: string, newPassword: string) => {
+    const target = ownerAccounts.find(a => a.id === id);
+    if (target?.username.toLowerCase() === 'patloon' && !isMasterOwner) {
+      showToast(`Protected: Only the Master Admin logged in as @patloon can edit the root credentials.`);
+      return;
+    }
+
+    setOwnerAccounts((prev) =>
+      prev.map((acc) => (acc.id === id ? { ...acc, password: newPassword } : acc))
+    );
+    if (currentOwner && currentOwner.id === id) {
+      setCurrentOwner((prev) => (prev ? { ...prev, password: newPassword } : null));
+    }
+    showToast(`Password updated successfully.`);
+  };
+
+  const deleteOwnerAccount = (id: string) => {
+    const target = ownerAccounts.find(a => a.id === id);
+    if (target?.username.toLowerCase() === 'patloon') {
+      showToast(`Cannot delete the Root Master Account (@patloon). It is permanently protected.`);
+      return;
+    }
+
+    if (ownerAccounts.length <= 1) {
+      showToast(`Cannot delete the only remaining master owner account.`);
+      return;
+    }
+    setOwnerAccounts((prev) => prev.filter((acc) => acc.id !== id));
+    if (currentOwner && currentOwner.id === id) {
+      setCurrentOwner(null);
+    }
+    showToast(`Owner account removed.`);
+  };
+
+  const resetOwnerAccounts = () => {
+    setOwnerAccounts(INITIAL_OWNER_ACCOUNTS);
+    showToast(`Owner credentials reset to default initial state.`);
   };
 
   const setSiteImageOverride = (key: string, dataUrl: string) => {
@@ -386,6 +566,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setSiteImageOverride,
         getSiteImage,
         resetSiteImages,
+        ownerAccounts,
+        currentOwner,
+        isAdminAuthenticated: !!currentOwner,
+        isMasterOwner,
+        loginAdmin,
+        logoutAdmin,
+        addOwnerAccount,
+        updateOwnerPassword,
+        deleteOwnerAccount,
+        resetOwnerAccounts,
         toastMessage,
         showToast,
       }}
