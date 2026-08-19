@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-heading: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Syne', sans-serif;
+    --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: #050505;
+    color: #F5F5F5;
+    letter-spacing: -0.01em;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: var(--font-heading);
+    letter-spacing: -0.04em;
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+  }
+}
+
+/* Editorial Minimalist Utility Classes */
+.editorial-border {
+  border-color: #242424;
+}
+
+.editorial-tag {
+  background-color: #000000;
+  border: 1px solid #242424;
+  color: #F5F5F5;
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.editorial-btn-primary {
+  background-color: #F5F5F5;
+  color: #000000;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  transition: all 0.2s ease-in-out;
+}
+.editorial-btn-primary:hover {
+  background-color: #FFFFFF;
+}
+
+.editorial-btn-secondary {
+  background-color: transparent;
+  border: 1px solid #242424;
+  color: #F5F5F5;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  transition: all 0.2s ease-in-out;
+}
+.editorial-btn-secondary:hover {
+  background-color: #111111;
+  border-color: #383838;
+}
+
+/* Custom Sleek Dark Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+::-webkit-scrollbar-thumb {
+  background: #242424;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #383838;
+}
+
+/* Hide scrollbar for horizontal collections */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Dark Glass utility */
+.glass-dark {
+  background: rgba(5, 5, 5, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid #242424;
+}
+
+
