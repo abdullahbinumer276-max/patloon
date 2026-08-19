@@ -14,6 +14,7 @@ import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { WishlistDrawer } from './components/WishlistDrawer';
 import { SearchOverlay } from './components/SearchOverlay';
+import { ImageManagerModal } from './components/ImageManagerModal';
 import { AdminDashboard } from './components/Admin/AdminDashboard';
 import { Toast } from './components/Toast';
 
@@ -25,6 +26,7 @@ const StoreContent: React.FC = () => {
       <div className="min-h-screen bg-[#070707] text-[#F5F5F5]">
         <AdminDashboard />
         <ProductDetailModal />
+        <ImageManagerModal />
         <Toast />
       </div>
     );
@@ -65,6 +67,7 @@ const StoreContent: React.FC = () => {
       <CheckoutModal />
       <WishlistDrawer />
       <SearchOverlay />
+      <ImageManagerModal />
       <Toast />
     </div>
   );

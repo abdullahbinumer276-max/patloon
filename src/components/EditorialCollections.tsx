@@ -3,7 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { ArrowRight } from 'lucide-react';
 
 export const EditorialCollections: React.FC = () => {
-  const { setActiveGenderFilter, setActiveCategory } = useStore();
+  const { setActiveGenderFilter, setActiveCategory, getSiteImage } = useStore();
 
   const handleSelectMen = () => {
     setActiveGenderFilter('MEN');
@@ -32,7 +32,10 @@ export const EditorialCollections: React.FC = () => {
       <div className="relative min-h-[70vh] flex items-center justify-start overflow-hidden border-b border-[#242424] group">
         <div className="absolute inset-0 z-0 overflow-hidden">
           <img
-            src="https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?q=80&w=2000&auto=format&fit=crop"
+            src={getSiteImage(
+              'men-campaign',
+              'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?q=80&w=2000&auto=format&fit=crop'
+            )}
             alt="THE PATLOON Men Editorial"
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover object-top filter brightness-[0.35] contrast-[1.15] group-hover:scale-105 transition-transform duration-1000 ease-out"
@@ -69,7 +72,10 @@ export const EditorialCollections: React.FC = () => {
         <div className="relative min-h-[60vh] flex items-end justify-start overflow-hidden border-b lg:border-b-0 lg:border-r border-[#242424] group p-8 sm:p-12">
           <div className="absolute inset-0 z-0 overflow-hidden">
             <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1600&auto=format&fit=crop"
+              src={getSiteImage(
+                'women-campaign',
+                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1600&auto=format&fit=crop'
+              )}
               alt="THE PATLOON Women Collection"
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover object-center filter brightness-[0.32] contrast-[1.2] group-hover:scale-105 transition-transform duration-1000 ease-out"
@@ -101,7 +107,10 @@ export const EditorialCollections: React.FC = () => {
         <div className="relative min-h-[60vh] flex items-end justify-start overflow-hidden group p-8 sm:p-12">
           <div className="absolute inset-0 z-0 overflow-hidden">
             <img
-              src="https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?q=80&w=1600&auto=format&fit=crop"
+              src={getSiteImage(
+                'patloons-campaign',
+                'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?q=80&w=1600&auto=format&fit=crop'
+              )}
               alt="THE PATLOON Signature Bottoms"
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover object-center filter brightness-[0.32] contrast-[1.2] group-hover:scale-105 transition-transform duration-1000 ease-out"

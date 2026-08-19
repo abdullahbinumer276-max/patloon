@@ -7,6 +7,7 @@ interface StoreContextType {
   addProduct: (product: Omit<Product, 'id'>) => Product;
   updateProduct: (id: string, updates: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
+  replaceProductImage: (productId: string, imageIndex: number, dataUrl: string) => void;
   cart: CartItem[];
   addToCart: (product: Product, size: string, color: ProductColor, qty?: number) => void;
   removeFromCart: (index: number) => void;
@@ -40,6 +41,12 @@ interface StoreContextType {
   setIsAdminOpen: (open: boolean) => void;
   isCheckoutOpen: boolean;
   setIsCheckoutOpen: (open: boolean) => void;
+  isImageManagerOpen: boolean;
+  setIsImageManagerOpen: (open: boolean) => void;
+  siteImageOverrides: Record<string, string>;
+  setSiteImageOverride: (key: string, dataUrl: string) => void;
+  getSiteImage: (key: string, fallbackUrl: string) => string;
+  resetSiteImages: () => void;
   toastMessage: string | null;
   showToast: (msg: string) => void;
 }
@@ -51,6 +58,7 @@ const LOCAL_STORAGE_KEY_CART = 'patloon_cart_v2';
 const LOCAL_STORAGE_KEY_WISHLIST = 'patloon_wishlist_v2';
 const LOCAL_STORAGE_KEY_ORDERS = 'patloon_orders_v2';
 const LOCAL_STORAGE_KEY_ANNOUNCEMENT = 'patloon_announcement_v2';
+const LOCAL_STORAGE_KEY_IMAGES = 'patloon_site_images_v2';
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Products State
@@ -111,12 +119,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       'WORLDWIDE EXPRESS SHIPPING • COMPLIMENTARY DELIVERY OVER RS. 10,000 • USE CODE PATLOON10 FOR 10% OFF';
   });
 
+  // Site Image Overrides (for Hero, Lookbook, Collections, etc. uploaded via PNG)
+  const [siteImageOverrides, setSiteImageOverrides] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY_IMAGES);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse saved images', e);
+      }
+    }
+    return {};
+  });
+
   // UI Modals & Drawers
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isImageManagerOpen, setIsImageManagerOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<ProductCategory>('ALL');
@@ -144,11 +166,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem(LOCAL_STORAGE_KEY_ANNOUNCEMENT, announcementText);
   }, [announcementText]);
 
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY_IMAGES, JSON.stringify(siteImageOverrides));
+  }, [siteImageOverrides]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage((current) => (current === msg ? null : current));
     }, 3200);
+  };
+
+  const setSiteImageOverride = (key: string, dataUrl: string) => {
+    setSiteImageOverrides((prev) => ({
+      ...prev,
+      [key]: dataUrl,
+    }));
+    showToast(`Image updated with PNG file successfully`);
+  };
+
+  const getSiteImage = (key: string, fallbackUrl: string): string => {
+    return siteImageOverrides[key] || fallbackUrl;
+  };
+
+  const resetSiteImages = () => {
+    setSiteImageOverrides({});
+    localStorage.removeItem(LOCAL_STORAGE_KEY_IMAGES);
+    showToast(`Images reset to defaults`);
   };
 
   // Cart operations
@@ -227,7 +271,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
     );
+    if (selectedProduct && selectedProduct.id === id) {
+      setSelectedProduct((prev) => (prev ? { ...prev, ...updates } : null));
+    }
     showToast(`Garment updated successfully`);
+  };
+
+  const replaceProductImage = (productId: string, imageIndex: number, dataUrl: string) => {
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id !== productId) return p;
+        const newImages = [...p.images];
+        if (imageIndex < newImages.length) {
+          newImages[imageIndex] = dataUrl;
+        } else {
+          newImages.push(dataUrl);
+        }
+        return { ...p, images: newImages };
+      })
+    );
+    if (selectedProduct && selectedProduct.id === productId) {
+      setSelectedProduct((prev) => {
+        if (!prev) return null;
+        const newImages = [...prev.images];
+        if (imageIndex < newImages.length) {
+          newImages[imageIndex] = dataUrl;
+        } else {
+          newImages.push(dataUrl);
+        }
+        return { ...prev, images: newImages };
+      });
+    }
+    showToast(`Product image replaced with PNG`);
   };
 
   const deleteProduct = (id: string) => {
@@ -271,6 +346,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addProduct,
         updateProduct,
         deleteProduct,
+        replaceProductImage,
         cart,
         addToCart,
         removeFromCart,
@@ -304,6 +380,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsAdminOpen,
         isCheckoutOpen,
         setIsCheckoutOpen,
+        isImageManagerOpen,
+        setIsImageManagerOpen,
+        siteImageOverrides,
+        setSiteImageOverride,
+        getSiteImage,
+        resetSiteImages,
         toastMessage,
         showToast,
       }}

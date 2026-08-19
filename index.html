@@ -2,6 +2,24 @@
 <html lang="en" class="dark scroll-smooth">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Defensive window.fetch property shim to prevent "Cannot set property fetch of #<Window> which has only a getter"
+      try {
+        let _currentFetch = window.fetch ? window.fetch.bind(window) : undefined;
+        Object.defineProperty(window, 'fetch', {
+          get() {
+            return _currentFetch;
+          },
+          set(val) {
+            _currentFetch = typeof val === 'function' ? val.bind(window) : val;
+          },
+          configurable: true,
+          enumerable: true
+        });
+      } catch (e) {
+        // Silently continue if window is already locked
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>THE PATLOON | New-Gen Dark Luxury Fashion</title>
     <meta name="description" content="THE PATLOON — Modern clothing. Timeless attitude. Futuristic Pakistani luxury streetwear & contemporary silhouettes." />
@@ -18,4 +36,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

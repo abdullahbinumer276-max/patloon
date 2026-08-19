@@ -856,11 +856,39 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[#8A8A8A] mb-1 uppercase">IMAGE URLS (ONE PER LINE)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[#8A8A8A] uppercase">IMAGES (PNG / JPG / WEBP OR URLS)</label>
+                  <label className="text-[10px] text-[#F5F5F5] bg-[#1F1F1F] hover:bg-[#2A2A2A] px-2 py-1 border border-[#333333] cursor-pointer flex items-center space-x-1">
+                    <span>UPLOAD PNG / PHOTO</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (uploadEvent) => {
+                            const result = uploadEvent.target?.result as string;
+                            if (result) {
+                              setFormData((prev) => ({
+                                ...prev,
+                                imagesText: prev.imagesText ? `${result}\n${prev.imagesText}` : result,
+                              }));
+                              showToast('Image uploaded successfully.');
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
                 <textarea
                   rows={2}
                   value={formData.imagesText}
                   onChange={(e) => setFormData({ ...formData, imagesText: e.target.value })}
+                  placeholder="Paste image URLs or click 'UPLOAD PNG / PHOTO'"
                   className="w-full bg-[#141414] border border-[#282828] p-2.5 text-[#F5F5F5] focus:outline-none focus:border-[#555555]"
                 />
               </div>

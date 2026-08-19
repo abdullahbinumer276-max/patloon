@@ -13,12 +13,15 @@ import {
   Check,
   ArrowRight,
   Sparkles,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 export const ProductDetailModal: React.FC = () => {
   const {
     selectedProduct,
     setSelectedProduct,
+    replaceProductImage,
     addToCart,
     toggleWishlist,
     isInWishlist,
@@ -109,7 +112,7 @@ export const ProductDetailModal: React.FC = () => {
           {/* Left Gallery (7 Columns) */}
           <div className="lg:col-span-7 flex flex-col space-y-4">
             {/* Primary Display Image */}
-            <div className="relative aspect-[3/4] w-full bg-[#111111] border border-[#1F1F1F] overflow-hidden group">
+            <div className="relative aspect-[3/4] w-full bg-[#111111] border border-[#242424] overflow-hidden group">
               <img
                 src={selectedProduct.images[activeImageIndex] || selectedProduct.images[0]}
                 alt={selectedProduct.name}
@@ -119,20 +122,46 @@ export const ProductDetailModal: React.FC = () => {
 
               {/* Tag overlay */}
               {selectedProduct.tag && (
-                <div className="absolute top-4 left-4 z-10 px-2.5 py-1 bg-[#080808]/90 border border-[#333333] text-[#F5F5F5] text-[10px] font-mono tracking-widest uppercase">
+                <div className="absolute top-4 left-4 z-10 px-2.5 py-1 bg-black text-[#F5F5F5] border border-[#242424] text-[10px] font-mono tracking-widest uppercase">
                   {selectedProduct.tag}
                 </div>
               )}
+
+              {/* Replace Image with PNG floating button */}
+              <div className="absolute bottom-4 right-4 z-20">
+                <label className="flex items-center space-x-1.5 px-3 py-1.5 bg-black/90 hover:bg-black border border-[#333333] hover:border-white text-[#F5F5F5] text-[10px] font-mono tracking-wider uppercase cursor-pointer backdrop-blur-md shadow-lg transition-all">
+                  <Upload className="w-3 h-3 text-white" />
+                  <span>Change PNG</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const result = ev.target?.result as string;
+                          if (result) {
+                            replaceProductImage(selectedProduct.id, activeImageIndex, result);
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             {/* Thumbnail Row */}
             {selectedProduct.images.length > 1 && (
-              <div className="flex space-x-3 overflow-x-auto pb-1 no-scrollbar">
+              <div className="flex space-x-3 overflow-x-auto pb-1 no-scrollbar items-center">
                 {selectedProduct.images.map((imgUrl, idx) => (
                   <button
                     key={idx}
                     onClick={() => setActiveImageIndex(idx)}
-                    className={`relative w-20 aspect-[3/4] flex-shrink-0 border transition-all ${
+                    className={`relative w-20 aspect-[3/4] flex-shrink-0 border transition-all cursor-pointer ${
                       activeImageIndex === idx
                         ? 'border-[#F5F5F5] ring-1 ring-white/20'
                         : 'border-[#222222] opacity-60 hover:opacity-100'

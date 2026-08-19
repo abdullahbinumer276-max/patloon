@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Search, ShoppingBag, Heart, Menu, X, LayoutDashboard, Sparkles } from 'lucide-react';
+import { Search, ShoppingBag, Heart, Menu, X, LayoutDashboard, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { ProductCategory } from '../types';
 
 export const Navbar: React.FC = () => {
@@ -17,6 +17,7 @@ export const Navbar: React.FC = () => {
     announcementText,
     isAdminOpen,
     setIsAdminOpen,
+    setIsImageManagerOpen,
   } = useStore();
 
   const [isScrolled, setIsScrolled] = useState(false);
@@ -173,7 +174,18 @@ export const Navbar: React.FC = () => {
             </div>
 
             {/* Right Action Icons & Admin Toggle */}
-            <div className="flex items-center space-x-4 sm:space-x-5">
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              {/* Change PNG Images trigger */}
+              <button
+                id="image-manager-button"
+                onClick={() => setIsImageManagerOpen(true)}
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-[#111111] hover:bg-[#1C1C1C] border border-[#242424] hover:border-[#444444] text-[#A1A1A1] hover:text-[#F5F5F5] text-[10px] font-mono tracking-widest uppercase transition-all cursor-pointer"
+                title="Change any image with a local PNG file"
+              >
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">PNG Asset</span>
+              </button>
+
               {/* Admin Mode Pill */}
               <button
                 id="admin-portal-button"
